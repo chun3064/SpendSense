@@ -1,12 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   calculateBudgetStatus,
   calculateTotals,
   filterByCategory,
 } from "./utils.js";
 
-const API_BASE_URL = "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const CHART_COLORS = [
+  "#3c72c7",
+  "#cf5f52",
+  "#2d8f5b",
+  "#1f8f55",
+  "#6c63a8",
+  "#d97706",
+  "#0f766e",
+  "#be185d",
+  "#7c3aed",
+  "#4b5563",
+];
+const EXPENSE_CATEGORIES = ["Food", "Transportation", "Entertainment", "School", "Bills"];
 
+// Summary card shown at the top of the dashboard
 function SummaryCard({ label, value, tone }) {
   return (
     <article className={`summary-card summary-card--${tone}`}>
@@ -16,11 +30,126 @@ function SummaryCard({ label, value, tone }) {
   );
 }
 
+// Format stored dates for display in the table
+function formatDisplayDate(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// Canvas chart for expense totals by category
+function SpendingChart({ transactions }) {
+  const canvasRef = useRef(null);
+
+  const expenseTotals = transactions.reduce((totals, transaction) => {
+    if (transaction.type !== "expense") return totals;
+    if (transaction.category === "Income") return totals;
+    totals[transaction.category] = (totals[transaction.category] ?? 0) + transaction.amount;
+    return totals;
+  }, {});
+
+  const categories = Object.keys(expenseTotals);
+  const totalExpenses = Object.values(expenseTotals).reduce((sum, value) => sum + value, 0);
+  const chartItems = categories.map((category) => ({
+    category,
+    amount: expenseTotals[category],
+    percent: totalExpenses === 0 ? 0 : (expenseTotals[category] / totalExpenses) * 100,
+  }));
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (categories.length === 0) {
+      context.fillStyle = "#5d6a7a";
+      context.font = "16px Avenir Next";
+      context.fillText("No expense data yet.", 20, 60);
+      return;
+    }
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const outerRadius = 100;
+    const innerRadius = 56;
+    let startAngle = -Math.PI / 2;
+
+    chartItems.forEach((item, index) => {
+      const sliceAngle = (item.amount / totalExpenses) * Math.PI * 2;
+      const endAngle = startAngle + sliceAngle;
+
+      context.beginPath();
+      context.moveTo(centerX, centerY);
+      context.arc(centerX, centerY, outerRadius, startAngle, endAngle);
+      context.closePath();
+      context.fillStyle = CHART_COLORS[index % CHART_COLORS.length];
+      context.fill();
+
+      startAngle = endAngle;
+    });
+
+    context.globalCompositeOperation = "destination-out";
+    context.beginPath();
+    context.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
+    context.fill();
+    context.globalCompositeOperation = "source-over";
+  }, [transactions, categories.length, totalExpenses]);
+
+  return (
+    <article className="panel chart-panel">
+      <h2>Expense Chart</h2>
+      <div className="insights-layout">
+        <section className="insights-total">
+          <p className="insights-label">Total Expenses</p>
+          <p className="insights-value">${totalExpenses.toFixed(2)}</p>
+        </section>
+
+        <section className="insights-canvas-wrap">
+          <canvas
+            ref={canvasRef}
+            className="spending-chart"
+            width="260"
+            height="260"
+            aria-label="Expense totals by category"
+          />
+        </section>
+
+        <section className="insights-legend">
+          {chartItems.length === 0 ? (
+            <p>No expense data yet.</p>
+          ) : (
+            chartItems.map((item, index) => (
+              <div key={item.category} className="legend-row">
+                <span
+                  className="legend-color"
+                  style={{
+                    backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                  }}
+                />
+                <span className="legend-category">{item.category}</span>
+                <span className="legend-amount">${item.amount.toFixed(2)}</span>
+                <span className="legend-percent">{item.percent.toFixed(1)}%</span>
+              </div>
+            ))
+          )}
+        </section>
+      </div>
+    </article>
+  );
+}
+
 const defaultFormState = {
   title: "",
   amount: "",
   category: "Food",
   type: "expense",
+  date: new Date().toISOString().slice(0, 10),
   isRecurring: false,
 };
 
@@ -31,13 +160,16 @@ const defaultBudgetFormState = {
   year: String(new Date().getFullYear()),
 };
 
+// Transaction form for creating and editing transactions
 function TransactionForm({ editingTransaction, onSaveTransaction, onCancelEdit }) {
   const [formState, setFormState] = useState({
     ...defaultFormState,
   });
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const categoryOptions = formState.type === "income" ? ["Income"] : EXPENSE_CATEGORIES;
 
+  // Load selected transaction values into the form when editing
   useEffect(() => {
     if (!editingTransaction) {
       setFormState({ ...defaultFormState });
@@ -49,9 +181,28 @@ function TransactionForm({ editingTransaction, onSaveTransaction, onCancelEdit }
       amount: String(editingTransaction.amount),
       category: editingTransaction.category,
       type: editingTransaction.type,
+      date: editingTransaction.date,
       isRecurring: Boolean(editingTransaction.isRecurring),
     });
   }, [editingTransaction]);
+
+  // Keep category in sync with the selected type
+  useEffect(() => {
+    if (formState.type === "income" && formState.category !== "Income") {
+      setFormState((current) => ({
+        ...current,
+        category: "Income",
+      }));
+      return;
+    }
+
+    if (formState.type === "expense" && formState.category === "Income") {
+      setFormState((current) => ({
+        ...current,
+        category: "Food",
+      }));
+    }
+  }, [formState.type, formState.category]);
 
   function handleChange(event) {
     const { name, value, type, checked } = event.target;
@@ -71,7 +222,7 @@ function TransactionForm({ editingTransaction, onSaveTransaction, onCancelEdit }
       await onSaveTransaction(formState);
 
       setFormState({ ...defaultFormState });
-      setMessage(editingTransaction ? "Transaction updated successfully." : "Transaction saved successfully.");
+      setMessage(editingTransaction ? "Transaction updated." : "Transaction saved.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -83,7 +234,7 @@ function TransactionForm({ editingTransaction, onSaveTransaction, onCancelEdit }
     <>
       <form className="transaction-form" onSubmit={handleSubmit}>
         <p className="form-mode">
-          {editingTransaction ? "Editing selected transaction" : "Create a new transaction"}
+          {editingTransaction ? "Editing transaction" : "Add a transaction"}
         </p>
 
         <label>
@@ -113,14 +264,24 @@ function TransactionForm({ editingTransaction, onSaveTransaction, onCancelEdit }
         </label>
 
         <label>
+          Date
+          <input
+            type="date"
+            name="date"
+            value={formState.date}
+            onChange={handleChange}
+            required
+          />
+        </label>
+
+        <label>
           Category
           <select name="category" value={formState.category} onChange={handleChange}>
-            <option value="Food">Food</option>
-            <option value="Transportation">Transportation</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="School">School</option>
-            <option value="Bills">Bills</option>
-            <option value="Income">Income</option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -184,6 +345,7 @@ function TransactionForm({ editingTransaction, onSaveTransaction, onCancelEdit }
   );
 }
 
+// Transaction table with filter and action buttons
 function TransactionTable({
   transactions,
   categoryFilter,
@@ -191,7 +353,14 @@ function TransactionTable({
   onEditTransaction,
   onDeleteTransaction,
   activeEditId,
+  sortConfig,
+  onSortChange,
 }) {
+  function renderSortIndicator(key) {
+    if (sortConfig.key !== key) return "";
+    return sortConfig.direction === "asc" ? " ^" : " v";
+  }
+
   return (
     <article className="panel" id="transactions">
       <div className="panel-header">
@@ -215,11 +384,31 @@ function TransactionTable({
         <table>
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Date</th>
+              <th>
+                <button type="button" className="table-sort-button" onClick={() => onSortChange("title")}>
+                  <span>Title{renderSortIndicator("title")}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" className="table-sort-button" onClick={() => onSortChange("category")}>
+                  <span>Category{renderSortIndicator("category")}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" className="table-sort-button" onClick={() => onSortChange("type")}>
+                  <span>Type{renderSortIndicator("type")}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" className="table-sort-button" onClick={() => onSortChange("amount")}>
+                  <span>Amount{renderSortIndicator("amount")}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" className="table-sort-button" onClick={() => onSortChange("date")}>
+                  <span>Date{renderSortIndicator("date")}</span>
+                </button>
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -233,7 +422,7 @@ function TransactionTable({
                 <td>{transaction.category}</td>
                 <td>{transaction.type}</td>
                 <td>${transaction.amount.toFixed(2)}</td>
-                <td>{transaction.date}</td>
+                <td className="date-cell">{formatDisplayDate(transaction.date)}</td>
                 <td>
                   <div className="table-actions">
                     <button
@@ -261,11 +450,13 @@ function TransactionTable({
   );
 }
 
+// Budget form for creating and editing budgets
 function BudgetForm({ editingBudget, onSaveBudget, onCancelEdit }) {
   const [formState, setFormState] = useState({ ...defaultBudgetFormState });
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Load selected budget values into the form when editing
   useEffect(() => {
     if (!editingBudget) {
       setFormState({ ...defaultBudgetFormState });
@@ -297,7 +488,7 @@ function BudgetForm({ editingBudget, onSaveBudget, onCancelEdit }) {
     try {
       await onSaveBudget(formState);
       setFormState({ ...defaultBudgetFormState });
-      setMessage(editingBudget ? "Budget updated successfully." : "Budget saved successfully.");
+      setMessage(editingBudget ? "Budget updated." : "Budget saved.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -309,7 +500,7 @@ function BudgetForm({ editingBudget, onSaveBudget, onCancelEdit }) {
     <>
       <form className="transaction-form" onSubmit={handleSubmit}>
         <p className="form-mode">
-          {editingBudget ? "Editing selected budget" : "Create a category budget"}
+          {editingBudget ? "Editing budget" : "Add a budget"}
         </p>
 
         <label>
@@ -387,6 +578,7 @@ function BudgetForm({ editingBudget, onSaveBudget, onCancelEdit }) {
   );
 }
 
+// Budgets page content
 function BudgetPanel({
   budgets,
   budgetStatus,
@@ -409,11 +601,11 @@ function BudgetPanel({
 
       <article className="panel">
         <div className="panel-header">
-          <h2>Budget Overview</h2>
+          <h2>Budgets</h2>
         </div>
 
         {budgetStatus.length === 0 ? (
-          <p>No budgets yet. Add one to track spending by category.</p>
+          <p>No budgets yet.</p>
         ) : (
           <div className="budget-list">
             {budgetStatus.map((budget) => (
@@ -459,16 +651,54 @@ function BudgetPanel({
   );
 }
 
+// Small cards for remaining budget amounts
+function RemainingBudgetCards({ budgetStatus }) {
+  if (budgetStatus.length === 0) {
+    return (
+      <article className="panel">
+        <h2>Remaining Budgets</h2>
+        <p>No budgets yet.</p>
+      </article>
+    );
+  }
+
+  return (
+    <article className="panel">
+      <h2>Remaining Budgets</h2>
+      <div className="remaining-budget-grid">
+        {budgetStatus.map((budget) => (
+          <article
+            key={budget.id}
+            className={`remaining-budget-card ${budget.remaining < 0 ? "remaining-budget-card--over" : ""}`}
+          >
+            <p className="remaining-budget-card__category">{budget.category}</p>
+            <p className="remaining-budget-card__amount">${budget.remaining.toFixed(2)}</p>
+            <p className="remaining-budget-card__meta">
+              Spent ${budget.spent.toFixed(2)} of ${budget.monthlyLimit.toFixed(2)}
+            </p>
+          </article>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+// Main app state and page switching
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sortConfig, setSortConfig] = useState({
+    key: "date",
+    direction: "desc",
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editingBudget, setEditingBudget] = useState(null);
   const [activePage, setActivePage] = useState("dashboard");
 
+  // Load transactions and budgets when the app starts
   useEffect(() => {
     async function loadData() {
       try {
@@ -501,13 +731,34 @@ function App() {
 
   const totals = calculateTotals(transactions);
   const filteredTransactions = filterByCategory(transactions, categoryFilter);
+  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+    if (sortConfig.key === "amount") {
+      return sortConfig.direction === "asc" ? a.amount - b.amount : b.amount - a.amount;
+    }
+
+    if (sortConfig.key === "date") {
+      const first = new Date(a.date);
+      const second = new Date(b.date);
+      return sortConfig.direction === "asc" ? first - second : second - first;
+    }
+
+    const firstValue = String(a[sortConfig.key]).toLowerCase();
+    const secondValue = String(b[sortConfig.key]).toLowerCase();
+
+    if (sortConfig.direction === "asc") {
+      return firstValue.localeCompare(secondValue);
+    }
+
+    return secondValue.localeCompare(firstValue);
+  });
   const budgetStatus = calculateBudgetStatus(budgets, transactions);
 
+  // Save a new transaction or update an existing one
   async function handleSaveTransaction(formState) {
     const payload = {
       ...formState,
       amount: Number(formState.amount),
-      date: editingTransaction?.date ?? new Date().toISOString().slice(0, 10),
+      date: formState.date,
     };
 
     const method = editingTransaction ? "PATCH" : "POST";
@@ -542,6 +793,7 @@ function App() {
     setTransactions((current) => [data, ...current]);
   }
 
+  // Remove a transaction from both MongoDB and local state
   async function handleDeleteTransaction(transactionId) {
     const response = await fetch(`${API_BASE_URL}/transactions/${transactionId}`, {
       method: "DELETE",
@@ -562,6 +814,7 @@ function App() {
     }
   }
 
+  // Save a new budget or update an existing one
   async function handleSaveBudget(formState) {
     const payload = {
       category: formState.category,
@@ -600,6 +853,7 @@ function App() {
     setBudgets((current) => [data, ...current]);
   }
 
+  // Remove a budget from both MongoDB and local state
   async function handleDeleteBudget(budgetId) {
     const response = await fetch(`${API_BASE_URL}/budgets/${budgetId}`, {
       method: "DELETE",
@@ -617,6 +871,7 @@ function App() {
     }
   }
 
+  // Top navigation handlers
   function openDashboard() {
     setActivePage("dashboard");
   }
@@ -625,15 +880,35 @@ function App() {
     setActivePage("budgets");
   }
 
+  function openInsights() {
+    setActivePage("insights");
+  }
+
+  function handleSortChange(key) {
+    setSortConfig((current) => {
+      if (current.key === key) {
+        return {
+          key,
+          direction: current.direction === "asc" ? "desc" : "asc",
+        };
+      }
+
+      return {
+        key,
+        direction: key === "date" ? "desc" : "asc",
+      };
+    });
+  }
+
   return (
     <div className="app-shell">
       <header className="hero">
         <p className="eyebrow">CS 341 Final Project</p>
         <h1>SpendSense</h1>
         <p className="hero-copy">
-          A personal finance tracker that helps students understand spending,
-          stay on budget, and build better habits.
+          Personal finance app for tracking transactions and monthly budgets.
         </p>
+        <img src="/money.avif" alt="Money and financial planning visual" className="hero-image" />
         <nav className="nav" aria-label="Main navigation">
           <button
             type="button"
@@ -649,6 +924,13 @@ function App() {
           >
             Budgets
           </button>
+          <button
+            type="button"
+            className={`nav-link ${activePage === "insights" ? "nav-link--active" : ""}`}
+            onClick={openInsights}
+          >
+            Insights
+          </button>
         </nav>
       </header>
 
@@ -657,7 +939,7 @@ function App() {
           <>
             <section className="page-intro">
               <h2>Dashboard</h2>
-              <p>Track income, expenses, and recent activity in one place.</p>
+              <p>View totals and recent transactions.</p>
             </section>
 
             <section className="summary-grid" aria-label="Financial summary">
@@ -688,12 +970,14 @@ function App() {
                 </article>
               ) : (
                 <TransactionTable
-                  transactions={filteredTransactions}
+                  transactions={sortedTransactions}
                   categoryFilter={categoryFilter}
                   onFilterChange={setCategoryFilter}
                   onEditTransaction={setEditingTransaction}
                   onDeleteTransaction={handleDeleteTransaction}
                   activeEditId={editingTransaction?.id ?? null}
+                  sortConfig={sortConfig}
+                  onSortChange={handleSortChange}
                 />
               )}
             </section>
@@ -709,12 +993,12 @@ function App() {
 
             {isLoading ? (
               <article className="panel">
-                <h2>Budget Overview</h2>
+                <h2>Budgets</h2>
                 <p>Loading budgets...</p>
               </article>
             ) : loadError ? (
               <article className="panel">
-                <h2>Budget Overview</h2>
+                <h2>Budgets</h2>
                 <p>{loadError}</p>
               </article>
             ) : (
@@ -730,7 +1014,28 @@ function App() {
             )}
           </>
         ) : null}
+
+        {activePage === "insights" ? (
+          <>
+            <section className="page-intro">
+              <h2>Insights</h2>
+              <p>View expense totals by category.</p>
+            </section>
+
+            <section className="chart-section">
+              <SpendingChart transactions={transactions} />
+            </section>
+
+            <section className="chart-section">
+              <RemainingBudgetCards budgetStatus={budgetStatus} />
+            </section>
+          </>
+        ) : null}
       </main>
+
+      <footer className="site-footer">
+        <p>SpendSense | Wesley Chun | 2026</p>
+      </footer>
     </div>
   );
 }

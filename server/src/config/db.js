@@ -6,6 +6,7 @@ const dbName = process.env.DB_NAME || "spendsense";
 const client = new MongoClient(uri);
 let database = null;
 
+// Connect to MongoDB once and reuse that connection
 async function connectToDatabase() {
   if (database) {
     return database;
@@ -17,6 +18,7 @@ async function connectToDatabase() {
   return database;
 }
 
+// Return the active database connection for controllers
 function getDatabase() {
   if (!database) {
     throw new Error("Database connection has not been initialized.");
@@ -25,7 +27,18 @@ function getDatabase() {
   return database;
 }
 
+// Close MongoDB connection after tests
+async function closeDatabase() {
+  if (!database) {
+    return;
+  }
+
+  await client.close();
+  database = null;
+}
+
 module.exports = {
   connectToDatabase,
+  closeDatabase,
   getDatabase,
 };

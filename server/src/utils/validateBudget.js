@@ -1,3 +1,4 @@
+// Basic validation for budget requests
 function validateBudget(budget) {
   if (!budget.category || typeof budget.category !== "string") {
     return "Budget category is required.";

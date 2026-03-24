@@ -2,10 +2,12 @@ const { ObjectId } = require("mongodb");
 const { getDatabase } = require("../config/db");
 const { validateBudget } = require("../utils/validateBudget");
 
+// Get the budgets collection from MongoDB
 function getCollection() {
   return getDatabase().collection("budgets");
 }
 
+// Clean up incoming budget data before saving
 function sanitizeBudgetInput(body) {
   return {
     category: String(body.category ?? "").trim(),
@@ -16,6 +18,7 @@ function sanitizeBudgetInput(body) {
   };
 }
 
+// Convert MongoDB _id into a simpler id field for the client
 function serializeBudget(budget) {
   return {
     ...budget,
@@ -23,6 +26,7 @@ function serializeBudget(budget) {
   };
 }
 
+// Get all saved budgets
 async function getBudgets(req, res) {
   const budgets = await getCollection()
     .find({})
@@ -32,6 +36,7 @@ async function getBudgets(req, res) {
   res.json(budgets.map(serializeBudget));
 }
 
+// Create a new budget
 async function createBudget(req, res) {
   const newBudget = sanitizeBudgetInput(req.body);
   const error = validateBudget(newBudget);
@@ -47,6 +52,7 @@ async function createBudget(req, res) {
   });
 }
 
+// Update one budget by id
 async function updateBudget(req, res) {
   if (!ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ error: "Invalid budget id." });
@@ -72,6 +78,7 @@ async function updateBudget(req, res) {
   res.json(serializeBudget(result));
 }
 
+// Delete one budget by id
 async function deleteBudget(req, res) {
   if (!ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ error: "Invalid budget id." });

@@ -2,10 +2,12 @@ const { ObjectId } = require("mongodb");
 const { getDatabase } = require("../config/db");
 const { validateTransaction } = require("../utils/validateTransaction");
 
+// Get the transactions collection from MongoDB
 function getCollection() {
   return getDatabase().collection("transactions");
 }
 
+// Clean up incoming transaction data before saving
 function sanitizeTransactionInput(body) {
   return {
     title: String(body.title ?? "").trim(),
@@ -18,6 +20,7 @@ function sanitizeTransactionInput(body) {
   };
 }
 
+// Convert MongoDB _id into a simpler id field for the client
 function serializeTransaction(transaction) {
   return {
     ...transaction,
@@ -25,6 +28,7 @@ function serializeTransaction(transaction) {
   };
 }
 
+// Get all saved transactions
 async function getTransactions(req, res) {
   const transactions = await getCollection()
     .find({})
@@ -34,6 +38,7 @@ async function getTransactions(req, res) {
   res.json(transactions.map(serializeTransaction));
 }
 
+// Create a new transaction
 async function createTransaction(req, res) {
   const newTransaction = sanitizeTransactionInput(req.body);
   const error = validateTransaction(newTransaction);
@@ -49,6 +54,7 @@ async function createTransaction(req, res) {
   });
 }
 
+// Update one transaction by id
 async function updateTransaction(req, res) {
   if (!ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ error: "Invalid transaction id." });
@@ -74,6 +80,7 @@ async function updateTransaction(req, res) {
   res.json(serializeTransaction(result));
 }
 
+// Delete one transaction by id
 async function deleteTransaction(req, res) {
   if (!ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ error: "Invalid transaction id." });

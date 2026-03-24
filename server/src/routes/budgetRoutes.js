@@ -8,6 +8,7 @@ const {
 
 const router = express.Router();
 
+// Budget API routes
 router.get("/", getBudgets);
 router.post("/", createBudget);
 router.patch("/:id", updateBudget);

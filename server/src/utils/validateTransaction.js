@@ -1,3 +1,4 @@
+// Basic validation for transaction requests
 function validateTransaction(transaction) {
   if (!transaction.title || typeof transaction.title !== "string") {
     return "Transaction title is required.";

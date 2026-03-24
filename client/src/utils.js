@@ -1,3 +1,4 @@
+// Calculate income, expenses, and balance from all transactions
 export function calculateTotals(items) {
   return items.reduce(
     (totals, item) => {
@@ -14,11 +15,13 @@ export function calculateTotals(items) {
   );
 }
 
+// Filter transactions by category ("all" returns everything)
 export function filterByCategory(items, category) {
   if (category === "all") return [...items];
   return items.filter((item) => item.category === category);
 }
 
+// Compare each budget against matching expense transactions
 export function calculateBudgetStatus(budgets, transactions) {
   return budgets.map((budget) => {
     const spent = transactions

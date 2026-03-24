@@ -8,6 +8,7 @@ const {
 
 const router = express.Router();
 
+// Transaction API routes
 router.get("/", getTransactions);
 router.post("/", createTransaction);
 router.patch("/:id", updateTransaction);

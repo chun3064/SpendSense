@@ -1,0 +1,10 @@
+{
+  "name": "spendsense-tests",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test:unit": "node --test ./Tests/client/utils.test.mjs ./Tests/server/validation.test.mjs",
+    "test:api": "node --test ./Tests/server/api.test.mjs",
+    "test": "npm run test:unit && npm run test:api"
+  }
+}

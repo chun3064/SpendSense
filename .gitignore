@@ -1,5 +1,12 @@
 node_modules
+client/node_modules
+server/node_modules
 .DS_Store
 .env
+.env.local
+.env.production
+.env.development
+server/.env
+client/.env
 dist
 coverage

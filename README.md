@@ -1,6 +1,6 @@
 # SpendSense
 
-SpendSense is my CS 341 final project. It is a personal finance web app where the user can add transactions, edit or delete them, create budgets, and check the remaining amount for each category.
+SpendSense is my CS 341 final project. It is a personal finance web app for tracking transactions, managing budgets, and getting a quick view of spending by category.
 
 ## Features
 
@@ -37,7 +37,7 @@ Open two terminal windows.
 ### Server
 
 ```bash
-cd "/Users/wesleychun/Documents/_School/Winter 26/CS 341/FinalProject/server"
+cd server
 npm install
 npm run dev
 ```
@@ -45,7 +45,7 @@ npm run dev
 ### Client
 
 ```bash
-cd "/Users/wesleychun/Documents/_School/Winter 26/CS 341/FinalProject/client"
+cd client
 npm install
 cp .env.example .env
 npm run dev
@@ -70,7 +70,7 @@ npm test
 
 ## Environment File
 
-Create a `.env` file in the `server` folder using `.env.example`.
+For local development, create a `.env` file in the `server` folder using `.env.example`.
 
 Example:
 
@@ -91,12 +91,13 @@ VITE_API_BASE_URL=http://localhost:3000/api
 
 ## Deployment Notes
 
-- Frontend can be deployed on Vercel
-- Backend can be deployed on Render
-- MongoDB can be hosted on MongoDB Atlas
-- On the deployed frontend, set `VITE_API_BASE_URL` to your Render backend URL plus `/api`
-- On the deployed backend, set `CORS_ORIGIN` to your Vercel frontend URL
-- Do not push real `.env` files to GitHub
+This project can be deployed with:
+
+- Vercel for the frontend
+- Render for the backend
+- MongoDB Atlas for the database
+
+If deployed, the frontend should use the Render backend URL for `VITE_API_BASE_URL`, and the backend should use the Vercel frontend URL for `CORS_ORIGIN`.
 
 ## API Routes
 

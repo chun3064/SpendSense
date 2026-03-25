@@ -46,15 +46,6 @@ select {
   overflow: hidden;
 }
 
-/* Small heading above main title */
-.eyebrow {
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 0.78rem;
-  color: #2d8f5b;
-}
-
 /* Main page title */
 .hero h1 {
   margin: 0;

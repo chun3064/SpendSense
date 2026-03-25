@@ -909,7 +909,6 @@ function App() {
   return (
     <div className="app-shell">
       <header className="hero">
-        <p className="eyebrow">CS 341 Final Project</p>
         <h1>SpendSense</h1>
         <p className="hero-copy">
           Personal finance app for tracking transactions and monthly budgets.

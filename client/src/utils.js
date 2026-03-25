@@ -1,14 +1,19 @@
+// Round money values to 2 decimal places
+export function roundCurrency(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
 // Calculate income, expenses, and balance from all transactions
 export function calculateTotals(items) {
   return items.reduce(
     (totals, item) => {
       if (item.type === "income") {
-        totals.income += item.amount;
+        totals.income = roundCurrency(totals.income + item.amount);
       } else {
-        totals.expenses += item.amount;
+        totals.expenses = roundCurrency(totals.expenses + item.amount);
       }
 
-      totals.balance = totals.income - totals.expenses;
+      totals.balance = roundCurrency(totals.income - totals.expenses);
       return totals;
     },
     { income: 0, expenses: 0, balance: 0 },
@@ -30,12 +35,12 @@ export function calculateBudgetStatus(budgets, transactions) {
           transaction.type === "expense" &&
           transaction.category === budget.category,
       )
-      .reduce((sum, transaction) => sum + transaction.amount, 0);
+      .reduce((sum, transaction) => roundCurrency(sum + transaction.amount), 0);
 
     return {
       ...budget,
       spent,
-      remaining: budget.monthlyLimit - spent,
+      remaining: roundCurrency(budget.monthlyLimit - spent),
     };
   });
 }

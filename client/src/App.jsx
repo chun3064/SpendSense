@@ -3,6 +3,7 @@ import {
   calculateBudgetStatus,
   calculateTotals,
   filterByCategory,
+  roundCurrency,
 } from "./utils.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -48,12 +49,17 @@ function SpendingChart({ transactions }) {
   const expenseTotals = transactions.reduce((totals, transaction) => {
     if (transaction.type !== "expense") return totals;
     if (transaction.category === "Income") return totals;
-    totals[transaction.category] = (totals[transaction.category] ?? 0) + transaction.amount;
+    totals[transaction.category] = roundCurrency(
+      (totals[transaction.category] ?? 0) + transaction.amount,
+    );
     return totals;
   }, {});
 
   const categories = Object.keys(expenseTotals);
-  const totalExpenses = Object.values(expenseTotals).reduce((sum, value) => sum + value, 0);
+  const totalExpenses = Object.values(expenseTotals).reduce(
+    (sum, value) => roundCurrency(sum + value),
+    0,
+  );
   const chartItems = categories.map((category) => ({
     category,
     amount: expenseTotals[category],
@@ -757,7 +763,7 @@ function App() {
   async function handleSaveTransaction(formState) {
     const payload = {
       ...formState,
-      amount: Number(formState.amount),
+      amount: roundCurrency(formState.amount),
       date: formState.date,
     };
 
@@ -818,7 +824,7 @@ function App() {
   async function handleSaveBudget(formState) {
     const payload = {
       category: formState.category,
-      monthlyLimit: Number(formState.monthlyLimit),
+      monthlyLimit: roundCurrency(formState.monthlyLimit),
       month: Number(formState.month),
       year: Number(formState.year),
     };

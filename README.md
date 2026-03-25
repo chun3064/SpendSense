@@ -2,6 +2,12 @@
 
 SpendSense is my CS 341 final project. It is a personal finance web app for tracking transactions, managing budgets, and getting a quick view of spending by category.
 
+## Live Site
+
+The website is live here:
+
+https://spend-sense-wheat.vercel.app
+
 ## Features
 
 - Add, edit, and delete transactions
